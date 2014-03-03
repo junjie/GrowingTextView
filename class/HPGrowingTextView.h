@@ -107,6 +107,9 @@
 @property (nonatomic) BOOL isScrollable;
 @property(nonatomic) BOOL enablesReturnKeyAutomatically;
 
+//An action block to execute when the text view is being resized
+@property (nonatomic, copy) void (^resizeTextViewBlock)(HPGrowingTextView *textView, NSInteger newSize);
+
 #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 70000
 - (id)initWithFrame:(CGRect)frame textContainer:(NSTextContainer *)textContainer;
 #endif

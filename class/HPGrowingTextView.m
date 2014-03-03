@@ -95,7 +95,7 @@
 #endif
     internalTextView.delegate = self;
     internalTextView.scrollEnabled = NO;
-    internalTextView.font = [UIFont fontWithName:@"Helvetica" size:13]; 
+    internalTextView.font = [UIFont systemFontOfSize:13.0];
     internalTextView.contentInset = UIEdgeInsetsZero;		
     internalTextView.showsHorizontalScrollIndicator = NO;
     internalTextView.text = @"-";
@@ -287,23 +287,22 @@
         // thanks to Gwynne <http://blog.darkrainfall.org/>
 		if (newSizeH <= maxHeight)
 		{
-            if(animateHeightChange) {
+            if (animateHeightChange) {
                 
-                if ([UIView resolveClassMethod:@selector(animateWithDuration:animations:)]) {
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 40000
-                    [UIView animateWithDuration:animationDuration 
+				if ([UIView respondsToSelector:@selector(animateWithDuration:animations:)])
+				{
+                    [UIView animateWithDuration:animationDuration
                                           delay:0 
                                         options:(UIViewAnimationOptionAllowUserInteraction|
                                                  UIViewAnimationOptionBeginFromCurrentState)                                 
                                      animations:^(void) {
                                          [self resizeTextView:newSizeH];
-                                     } 
+                                     }
                                      completion:^(BOOL finished) {
                                          if ([delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
                                              [delegate growingTextView:self didChangeHeight:newSizeH];
                                          }
                                      }];
-#endif
                 } else {
                     [UIView beginAnimations:@"" context:nil];
                     [UIView setAnimationDuration:animationDuration];
@@ -314,7 +313,7 @@
                     [UIView commitAnimations];
                 }
             } else {
-                [self resizeTextView:newSizeH];                
+                [self resizeTextView:newSizeH];
                 // [fixed] The growingTextView:didChangeHeight: delegate method was not called at all when not animating height changes.
                 // thanks to Gwynne <http://blog.darkrainfall.org/>
                 
@@ -380,6 +379,11 @@
     internalTextViewFrame.origin.x = contentInset.left;
     
     if(!CGRectEqualToRect(internalTextView.frame, internalTextViewFrame)) internalTextView.frame = internalTextViewFrame;
+	
+	if (self.resizeTextViewBlock != NULL)
+	{
+		self.resizeTextViewBlock(self, newSizeH);
+	}	
 }
 
 - (void)growDidStop
