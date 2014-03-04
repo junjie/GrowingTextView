@@ -130,4 +130,7 @@
 - (void)refreshHeightAlongWithAnimation:(void (^)(void))otherAnimations
 							 completion:(void (^)(NSUInteger oldHeight, NSUInteger newHeight))completion;
 
+// truncates the string to fit in a single line
+- (void)truncateStringToFitSingleLine;
+
 @end

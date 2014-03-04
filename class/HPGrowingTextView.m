@@ -30,11 +30,23 @@
 
 CGFloat const HPAccessoryViewLeftPadding = 5.0f;
 CGFloat const HPAccessoryViewRightPadding = 8.0f;
+CGFloat const HPTruncationInsetiOS7 = 5.0f;
+CGFloat const HPTruncationInsetiOS6 = 8.0f;
 
-@interface HPGrowingTextView(private)
+@interface HPGrowingTextView () < HPTextViewInternalDelegate>
+@property (copy, nonatomic) NSString *realText;
+
 -(void)commonInitialiser;
 -(void)resizeTextView:(NSInteger)newSizeH;
 -(void)growDidStop;
+@end
+
+@interface NSString (Layout)
+// Truncate a given string to fit in rect with the truncationString, inset and font
+- (NSString *)stringByTruncatingToSize:(CGRect)rect
+                    truncateWithString:(NSString *)truncationString
+                             withInset:(CGFloat)inset
+                             usingFont:(UIFont *)font;
 @end
 
 @implementation HPGrowingTextView
@@ -127,6 +139,52 @@ CGFloat const HPAccessoryViewRightPadding = 8.0f;
     return size;
 }
 
+- (void)getAccessoryViewFrame:(CGRect *)frame textViewRightInsets:(CGFloat *)rightInset
+{
+	if (frame == NULL && rightInset == NULL)
+	{
+		return;
+	}
+	
+	if (!self.accessoryView)
+	{
+		if (frame != NULL)
+		{
+			*frame = CGRectZero;
+		}
+		
+		if (rightInset != NULL)
+		{
+			*rightInset = 0;
+		}
+		
+		return;
+	}
+	
+	CGRect accessoryViewFrame = self.accessoryView.frame;
+	
+	accessoryViewFrame.origin.x =
+	CGRectGetWidth(self.bounds) -
+	CGRectGetWidth(accessoryViewFrame) -
+	HPAccessoryViewRightPadding;
+	
+	accessoryViewFrame.origin.y =
+	(CGRectGetHeight(self.bounds) - CGRectGetHeight(accessoryViewFrame)) / 2;
+	
+	if (frame != NULL)
+	{
+		*frame = CGRectIntegral(accessoryViewFrame);
+	}
+	
+	if (rightInset != NULL)
+	{
+		*rightInset =
+		(HPAccessoryViewLeftPadding +
+		 HPAccessoryViewRightPadding +
+		 CGRectGetWidth(accessoryViewFrame));
+	}
+}
+
 -(void)layoutSubviews
 {
     [super layoutSubviews];
@@ -138,25 +196,17 @@ CGFloat const HPAccessoryViewRightPadding = 8.0f;
 
 	if (self.accessoryView)
 	{
-		CGRect accessoryViewFrame = self.accessoryView.frame;
+		CGRect accessoryViewFrame;
+		CGFloat rightInsets;
 		
-		accessoryViewFrame.origin.x =
-		CGRectGetWidth(self.bounds) -
-		CGRectGetWidth(accessoryViewFrame) -
-		HPAccessoryViewRightPadding;
+		[self getAccessoryViewFrame:&accessoryViewFrame textViewRightInsets:&rightInsets];
 		
-		accessoryViewFrame.origin.y =
-		(CGRectGetHeight(self.bounds) - CGRectGetHeight(accessoryViewFrame)) / 2;
-		
-		self.accessoryView.frame = CGRectIntegral(accessoryViewFrame);
+		self.accessoryView.frame = accessoryViewFrame;
 		
 		if ([self.internalTextView respondsToSelector:@selector(setTextContainerInset:)])
 		{
 			UIEdgeInsets internalInsets = self.internalTextView.textContainerInset;
-			internalInsets.right =
-			(HPAccessoryViewLeftPadding +
-			 HPAccessoryViewRightPadding +
-			 CGRectGetWidth(accessoryViewFrame));
+			internalInsets.right = rightInsets;
 			self.internalTextView.textContainerInset = internalInsets;
 		}
 //		else
@@ -303,11 +353,14 @@ CGFloat const HPAccessoryViewRightPadding = 8.0f;
 		}
 		
 		_accessoryView = accessoryView;
+		
+		[self truncateStringToFitSingleLine];
 	}
 }
 
 - (void)textViewDidChange:(UITextView *)textView
 {
+	self.realText = textView.text;
     [self refreshHeight];
 }
 
@@ -488,16 +541,22 @@ CGFloat const HPAccessoryViewRightPadding = 8.0f;
 
 -(void)setText:(NSString *)newText
 {
+	self.realText = newText;
     internalTextView.text = newText;
-    
+	
+	if (![self isFirstResponder])
+	{
+        [self truncateStringToFitSingleLine];
+    }
+	
     // include this line to analyze the height of the textview.
     // fix from Ankit Thakur
-    [self performSelector:@selector(textViewDidChange:) withObject:internalTextView];
+    [self performSelector:@selector(refreshHeight) withObject:nil];
 }
 
 -(NSString*) text
 {
-    return internalTextView.text;
+    return self.realText;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -646,6 +705,58 @@ CGFloat const HPAccessoryViewRightPadding = 8.0f;
 	[internalTextView scrollRangeToVisible:range];
 }
 
+
+#pragma mark - Truncation
+
+- (NSString *)_truncatedStringFittingASingleLineFromString:(NSString *)originalString
+{
+	CGRect frame = internalTextView.frame;
+	frame.size.height = internalTextView.font.lineHeight;
+	
+	CGFloat rightInsets;
+	[self getAccessoryViewFrame:NULL textViewRightInsets:&rightInsets];
+
+	if (rightInsets > 0)
+	{
+		frame.size.width -= rightInsets;
+	}
+
+	NSString* truncatedString = nil;
+	
+	if (floor(NSFoundationVersionNumber) <= NSFoundationVersionNumber_iOS_6_1)
+	{
+		// iOS 6.1
+		truncatedString =
+		[originalString stringByTruncatingToSize:frame
+							  truncateWithString:@"…"
+									   withInset:HPTruncationInsetiOS6
+									   usingFont:internalTextView.font];
+	}
+	else
+	{
+		// iOS 7 or later
+		truncatedString =
+		[originalString stringByTruncatingToSize:frame
+							  truncateWithString:@"…"
+									   withInset:HPTruncationInsetiOS7
+									   usingFont:internalTextView.font];
+	}
+	
+	return truncatedString;
+}
+
+- (void)truncateStringToFitSingleLine
+{
+    NSString* originalString = [NSString stringWithString:internalTextView.text];
+    
+    // Truncate the string if needed
+    NSString* truncatedString =
+	[self _truncatedStringFittingASingleLineFromString:originalString];
+	
+    internalTextView.text = truncatedString;
+}
+
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma mark -
@@ -676,6 +787,7 @@ CGFloat const HPAccessoryViewRightPadding = 8.0f;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)textViewDidBeginEditing:(UITextView *)textView {
+    internalTextView.text = self.realText;
 	if ([delegate respondsToSelector:@selector(growingTextViewDidBeginEditing:)]) {
 		[delegate growingTextViewDidBeginEditing:self];
 	}
@@ -728,17 +840,115 @@ CGFloat const HPAccessoryViewRightPadding = 8.0f;
 
 - (BOOL)isAccessibilityElement
 {
-	return YES;
+	return NO;
 }
 
-- (NSString *)accessibilityLabel
+#pragma mark - HPTextViewInternalDelegate
+
+- (NSString *)textViewAccessibilityLabel:(UITextView *)textView
 {
-	if (self.text.length)
+	if (textView == internalTextView)
 	{
-		return self.text;
+		return self.placeholder;
 	}
+	return nil;
+}
+
+- (NSString *)textViewAccessibilityValue:(UITextView *)textView
+{
+	if (textView == internalTextView)
+	{
+		return self.realText;
+	}
+	return nil;
+}
+
+@end
+
+
+@implementation NSString (Layout)
+
+- (NSString *)truncateString:(NSString *)originalString
+				  withString:(NSString *)truncationString
+						font:(UIFont *)font
+		   constrainedToSize:(CGSize)maxSize
+			   fittingHeight:(CGFloat)fittingHeight
+		  enumerationOptions:(NSStringEnumerationOptions)enumerationOptions
+{
 	
-	return self.placeholder;
+	__block NSMutableString* truncatedText = [NSMutableString stringWithString:originalString];
+	
+	[self enumerateSubstringsInRange:NSMakeRange(0, self.length)
+							 options:enumerationOptions
+						  usingBlock:
+	 ^(NSString *substring, NSRange substringRange, NSRange enclosingRange, BOOL *stop) {
+		 
+		 NSRange rangeToDelete = enclosingRange;
+		 rangeToDelete.length = truncatedText.length - rangeToDelete.location;
+		 
+		 [truncatedText replaceCharactersInRange:rangeToDelete withString:truncationString];
+		 
+		 CGSize newSize = [truncatedText sizeWithFont:font
+									constrainedToSize:maxSize
+										lineBreakMode:NSLineBreakByWordWrapping];
+		 
+		 //		 DDLogInfo(@"Truncated text: %@ (%@)", truncatedText, NSStringFromCGSize(newSize));
+		 
+		 if (fittingHeight >= newSize.height)
+			 *stop = YES;
+	 }];
+	
+	return [NSString stringWithString:truncatedText];
+	
+}
+
+
+// http://stackoverflow.com/a/7829803/401329
+// http://stackoverflow.com/questions/7099604/ellipsis-at-the-end-of-uitextview
+- (NSString *)stringByTruncatingToSize:(CGRect)rect
+                    truncateWithString:(NSString *)truncationString
+                             withInset:(CGFloat)inset
+                             usingFont:(UIFont *)font
+{
+    
+    CGSize maxSize = CGSizeMake(rect.size.width  - (inset * 2), FLT_MAX);
+    CGSize curSize = [self sizeWithFont:font constrainedToSize:maxSize lineBreakMode:NSLineBreakByWordWrapping];
+    NSString *truncatedText = [NSString stringWithString:self];
+    
+    if (rect.size.height < curSize.height) {
+        
+		NSStringEnumerationOptions enumerateByWords =
+		NSStringEnumerationByWords | NSStringEnumerationReverse |
+		NSStringEnumerationLocalized;
+		
+		truncatedText =
+		[self truncateString:self
+				  withString:truncationString
+						font:font
+		   constrainedToSize:maxSize
+			   fittingHeight:rect.size.height
+		  enumerationOptions:enumerateByWords];
+		
+		// Ooops, the only word was truncated. Truncate by characters now...
+		if ([truncatedText isEqualToString:truncationString]) {
+			
+			NSStringEnumerationOptions enumerateByCharacters =
+			NSStringEnumerationByComposedCharacterSequences |
+			NSStringEnumerationReverse | NSStringEnumerationLocalized;
+			
+			truncatedText =
+			[self truncateString:self
+					  withString:truncationString
+							font:font
+			   constrainedToSize:maxSize
+				   fittingHeight:rect.size.height
+			  enumerationOptions:enumerateByCharacters];
+			
+		}
+        
+    }
+    
+    return truncatedText;
 }
 
 @end

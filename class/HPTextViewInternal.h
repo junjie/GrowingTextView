@@ -27,6 +27,12 @@
 
 #import <UIKit/UIKit.h>
 
+@protocol HPTextViewInternalDelegate <UITextViewDelegate>
+
+- (NSString *)textViewAccessibilityLabel:(UITextView *)textView;
+- (NSString *)textViewAccessibilityValue:(UITextView *)textView;
+
+@end
 
 @interface HPTextViewInternal : UITextView
 

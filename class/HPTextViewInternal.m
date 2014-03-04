@@ -123,4 +123,33 @@
 	[self setNeedsDisplay];
 }
 
+#pragma mark - Accessibility
+
+- (BOOL)isAccessibilityElement
+{
+	return YES;
+}
+
+- (NSString *)accessibilityLabel
+{
+	if ([self.delegate respondsToSelector:@selector(textViewAccessibilityLabel:)])
+	{
+		NSString *label = [(id <HPTextViewInternalDelegate>)self.delegate textViewAccessibilityLabel:self];
+		return label;
+	}
+	
+	return [super accessibilityLabel];
+}
+
+- (NSString *)accessibilityValue
+{
+	if ([self.delegate respondsToSelector:@selector(textViewAccessibilityValue:)])
+	{
+		NSString *value = [(id <HPTextViewInternalDelegate>)self.delegate textViewAccessibilityValue:self];
+		return value;
+	}
+	
+	return [super accessibilityValue];
+}
+
 @end
