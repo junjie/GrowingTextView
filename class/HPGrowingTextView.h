@@ -89,7 +89,8 @@
 @property NSTimeInterval animationDuration;
 @property (nonatomic, strong) NSString *placeholder;
 @property (nonatomic, strong) UIColor *placeholderColor;
-@property (nonatomic, strong) UITextView *internalTextView;	
+@property (nonatomic, strong) UIView *accessoryView;
+@property (nonatomic, strong) HPTextViewInternal *internalTextView;	
 
 
 //uitextview properties
@@ -122,8 +123,11 @@
 
 - (BOOL)hasText;
 - (void)scrollRangeToVisible:(NSRange)range;
+- (void)ios7_scrollToCaretAnimated:(BOOL)animated;
 
 // call to force a height change (e.g. after you change max/min lines)
 - (void)refreshHeight;
+- (void)refreshHeightAlongWithAnimation:(void (^)(void))otherAnimations
+							 completion:(void (^)(NSUInteger oldHeight, NSUInteger newHeight))completion;
 
 @end

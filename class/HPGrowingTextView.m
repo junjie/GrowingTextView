@@ -28,6 +28,9 @@
 #import "HPGrowingTextView.h"
 #import "HPTextViewInternal.h"
 
+CGFloat const HPAccessoryViewLeftPadding = 5.0f;
+CGFloat const HPAccessoryViewRightPadding = 8.0f;
+
 @interface HPGrowingTextView(private)
 -(void)commonInitialiser;
 -(void)resizeTextView:(NSInteger)newSizeH;
@@ -132,7 +135,41 @@
 	r.origin.y = 0;
 	r.origin.x = contentInset.left;
     r.size.width -= contentInset.left + contentInset.right;
-    
+
+	if (self.accessoryView)
+	{
+		CGRect accessoryViewFrame = self.accessoryView.frame;
+		
+		accessoryViewFrame.origin.x =
+		CGRectGetWidth(self.bounds) -
+		CGRectGetWidth(accessoryViewFrame) -
+		HPAccessoryViewRightPadding;
+		
+		accessoryViewFrame.origin.y =
+		(CGRectGetHeight(self.bounds) - CGRectGetHeight(accessoryViewFrame)) / 2;
+		
+		self.accessoryView.frame = CGRectIntegral(accessoryViewFrame);
+		
+		if ([self.internalTextView respondsToSelector:@selector(setTextContainerInset:)])
+		{
+			UIEdgeInsets internalInsets = self.internalTextView.textContainerInset;
+			internalInsets.right =
+			(HPAccessoryViewLeftPadding +
+			 HPAccessoryViewRightPadding +
+			 CGRectGetWidth(accessoryViewFrame));
+			self.internalTextView.textContainerInset = internalInsets;
+		}
+//		else
+//		{
+//			UIEdgeInsets internalInsets = self.internalTextView.contentInset;
+//			internalInsets.right =
+//			(HPAccessoryViewLeftPadding +
+//			 HPAccessoryViewRightPadding +
+//			 CGRectGetWidth(accessoryViewFrame));
+//			self.internalTextView.contentInset = internalInsets;
+//		}
+	}
+
     internalTextView.frame = r;
 }
 
@@ -251,6 +288,24 @@
     [internalTextView setPlaceholderColor:placeholderColor];
 }
 
+- (void)setAccessoryView:(UIView *)accessoryView
+{
+	if (_accessoryView != accessoryView)
+	{
+		if (_accessoryView)
+		{
+			[_accessoryView removeFromSuperview];
+		}
+		
+		if (accessoryView)
+		{
+			[self addSubview:accessoryView];
+		}
+		
+		_accessoryView = accessoryView;
+	}
+}
+
 - (void)textViewDidChange:(UITextView *)textView
 {
     [self refreshHeight];
@@ -258,6 +313,14 @@
 
 - (void)refreshHeight
 {
+	[self refreshHeightAlongWithAnimation:NULL completion:NULL];
+}
+
+- (void)refreshHeightAlongWithAnimation:(void (^)(void))otherAnimations
+							 completion:(void (^)(NSUInteger, NSUInteger))completion
+{
+	NSUInteger oldHeight = CGRectGetHeight(internalTextView.frame);
+	
 	//size of content, so we can set the frame of self
 	NSInteger newSizeH = [self measureHeight];
 	if (newSizeH < minHeight || !internalTextView.hasText) {
@@ -287,40 +350,27 @@
         // thanks to Gwynne <http://blog.darkrainfall.org/>
 		if (newSizeH <= maxHeight)
 		{
-            if (animateHeightChange) {
-                
-				if ([UIView respondsToSelector:@selector(animateWithDuration:animations:)])
-				{
-                    [UIView animateWithDuration:animationDuration
-                                          delay:0 
-                                        options:(UIViewAnimationOptionAllowUserInteraction|
-                                                 UIViewAnimationOptionBeginFromCurrentState)                                 
-                                     animations:^(void) {
-                                         [self resizeTextView:newSizeH];
-                                     }
-                                     completion:^(BOOL finished) {
-                                         if ([delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
-                                             [delegate growingTextView:self didChangeHeight:newSizeH];
-                                         }
-                                     }];
-                } else {
-                    [UIView beginAnimations:@"" context:nil];
-                    [UIView setAnimationDuration:animationDuration];
-                    [UIView setAnimationDelegate:self];
-                    [UIView setAnimationDidStopSelector:@selector(growDidStop)];
-                    [UIView setAnimationBeginsFromCurrentState:YES];
-                    [self resizeTextView:newSizeH];
-                    [UIView commitAnimations];
-                }
-            } else {
-                [self resizeTextView:newSizeH];
-                // [fixed] The growingTextView:didChangeHeight: delegate method was not called at all when not animating height changes.
-                // thanks to Gwynne <http://blog.darkrainfall.org/>
-                
-                if ([delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
-                    [delegate growingTextView:self didChangeHeight:newSizeH];
-                }	
-            }
+			[UIView animateWithDuration:animateHeightChange ? animationDuration : 0
+								  delay:0
+								options:(UIViewAnimationOptionAllowUserInteraction|
+										 UIViewAnimationOptionBeginFromCurrentState)
+							 animations:^(void) {
+								 [self resizeTextView:newSizeH];
+								 if (otherAnimations != NULL)
+								 {
+									 otherAnimations();
+								 }
+							 }
+							 completion:^(BOOL finished) {
+								 if (completion != NULL)
+								 {
+									 completion(oldHeight, newSizeH);
+								 }
+								 
+								 if ([delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
+									 [delegate growingTextView:self didChangeHeight:newSizeH];
+								 }
+							 }];
 		}
 	}
     // Display (or not) the placeholder string
@@ -332,13 +382,9 @@
         [internalTextView setNeedsDisplay];
     }
     
-    
-    // scroll to caret (needed on iOS7)
-    if ([self respondsToSelector:@selector(snapshotViewAfterScreenUpdates:)])
-    {
-        [self performSelector:@selector(resetScrollPositionForIOS7) withObject:nil afterDelay:0.1f];
-    }
-    
+//    // scroll to caret (needed on iOS7)
+//	[self performSelector:@selector(ios7_scrollToCaret) withObject:nil afterDelay:0.1f];
+
     // Tell the delegate that the text view changed
     if ([delegate respondsToSelector:@selector(growingTextViewDidChange:)]) {
 		[delegate growingTextViewDidChange:self];
@@ -348,21 +394,37 @@
 // Code from apple developer forum - @Steve Krulewitz, @Mark Marszal, @Eric Silverberg
 - (CGFloat)measureHeight
 {
-    if ([self respondsToSelector:@selector(snapshotViewAfterScreenUpdates:)])
-    {
-        return ceilf([self.internalTextView sizeThatFits:self.internalTextView.frame.size].height);
-    }
-    else {
-        return self.internalTextView.contentSize.height;
-    }
+	if (floor(NSFoundationVersionNumber) <= NSFoundationVersionNumber_iOS_6_1)
+	{
+		// iOS 6.1 or earlier
+		return self.internalTextView.contentSize.height;
+	}
+	else
+	{
+		// iOS 7 or later
+		return ceilf([self.internalTextView sizeThatFits:self.internalTextView.frame.size].height);
+	}	
 }
 
-- (void)resetScrollPositionForIOS7
+- (void)ios7_scrollToCaret
 {
+	[self ios7_scrollToCaretAnimated:NO];
+}
+
+- (void)ios7_scrollToCaretAnimated:(BOOL)animated
+{
+	if (floor(NSFoundationVersionNumber) <= NSFoundationVersionNumber_iOS_6_1)
+	{
+		// iOS 6.1 or earlier, return
+		return;
+	}
+	
     CGRect r = [internalTextView caretRectForPosition:internalTextView.selectedTextRange.end];
     CGFloat caretY =  MAX(r.origin.y - internalTextView.frame.size.height + r.size.height + 8, 0);
     if (internalTextView.contentOffset.y < caretY && r.origin.y != INFINITY)
-        internalTextView.contentOffset = CGPointMake(0, caretY);
+	{
+		[internalTextView setContentOffset:CGPointMake(0, caretY) animated:animated];
+	}
 }
 
 -(void)resizeTextView:(NSInteger)newSizeH
@@ -389,10 +451,7 @@
 - (void)growDidStop
 {
     // scroll to caret (needed on iOS7)
-    if ([self respondsToSelector:@selector(snapshotViewAfterScreenUpdates:)])
-    {
-        [self resetScrollPositionForIOS7];
-    }
+	[self ios7_scrollToCaretAnimated:NO];
     
 	if ([delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
 		[delegate growingTextView:self didChangeHeight:self.frame.size.height];
@@ -665,6 +724,21 @@
 	}
 }
 
+#pragma mark - Accessibility
 
+- (BOOL)isAccessibilityElement
+{
+	return YES;
+}
+
+- (NSString *)accessibilityLabel
+{
+	if (self.text.length)
+	{
+		return self.text;
+	}
+	
+	return self.placeholder;
+}
 
 @end
