@@ -33,6 +33,11 @@ CGFloat const HPAccessoryViewRightPadding = 8.0f;
 CGFloat const HPTruncationInsetiOS7 = 5.0f;
 CGFloat const HPTruncationInsetiOS6 = 8.0f;
 
+#if !__has_feature(objc_arc)
+#error HPGrowingTextView must be built with ARC.
+// You can turn on ARC for only HPGrowingTextView by adding -fobjc-arc to the build phase for HPGrowingTextView.m.
+#endif
+
 @interface HPGrowingTextView () < HPTextViewInternalDelegate>
 @property (copy, nonatomic) NSString *realText;
 

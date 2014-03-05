@@ -27,6 +27,10 @@
 
 #import "HPTextViewInternal.h"
 
+#if !__has_feature(objc_arc)
+#error HPTextViewInternal must be built with ARC.
+// You can turn on ARC for only HPTextViewInternal by adding -fobjc-arc to the build phase for HPTextViewInternal.m.
+#endif
 
 @implementation HPTextViewInternal
 
