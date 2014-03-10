@@ -133,4 +133,7 @@
 // truncates the string to fit in a single line
 - (void)truncateStringToFitSingleLine;
 
+/// Sets the text and sets the selected text range
+- (void)setText:(NSString *)newText selectedTextRange:(NSRange)range;
+
 @end

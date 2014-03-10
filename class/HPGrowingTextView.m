@@ -534,8 +534,29 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
     internalTextViewFrame.origin.y = contentInset.top - contentInset.bottom;
     internalTextViewFrame.origin.x = contentInset.left;
     
-    if(!CGRectEqualToRect(internalTextView.frame, internalTextViewFrame)) internalTextView.frame = internalTextViewFrame;
-	
+    if (!CGRectEqualToRect(internalTextView.frame, internalTextViewFrame))
+	{
+		internalTextView.frame = internalTextViewFrame;
+		
+		// Fix iOS 7 bug where when internal text frame is increased, it ends up
+		// sitting below because of a negative content offset applied that cannot
+		// be reset without setting the text of the text view.
+		if (floor(NSFoundationVersionNumber) > NSFoundationVersionNumber_iOS_6_1)
+		{
+			// iOS 7 or later
+			CGPoint offset = internalTextView.contentOffset;
+			
+			if (offset.y < 0)
+			{
+				NSRange originalSelectedRange = internalTextView.selectedRange;
+				[internalTextView setText:internalTextView.text];
+				
+				// Restore selected range
+				[internalTextView setSelectedRange:originalSelectedRange];
+			}
+		}
+	}
+		
 	if (self.resizeTextViewBlock != NULL)
 	{
 		self.resizeTextViewBlock(self, newSizeH);
@@ -580,10 +601,15 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 #pragma mark UITextView properties
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
--(void)setText:(NSString *)newText
+- (void)setText:(NSString *)newText selectedTextRange:(NSRange)range
 {
 	self.realText = newText;
     internalTextView.text = newText;
+	
+	if (range.location != NSNotFound && NSMaxRange(range) <= [newText length])
+	{
+		internalTextView.selectedRange = range;
+	}
 	
 	[self ios6_hideAccessoryViewIfOverlapsWithText:newText animate:NO];
 	
@@ -595,6 +621,11 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
     // include this line to analyze the height of the textview.
     // fix from Ankit Thakur
     [self performSelector:@selector(refreshHeight) withObject:nil];
+}
+
+-(void)setText:(NSString *)newText
+{
+	[self setText:newText selectedTextRange:NSMakeRange(NSNotFound, 0)];
 }
 
 -(NSString*) text
