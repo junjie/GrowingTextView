@@ -190,10 +190,51 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 	}
 }
 
+- (void)ios6_hideAccessoryViewIfOverlapsWithText:(NSString *)theText animate:(BOOL)animate
+{
+	if (floor(NSFoundationVersionNumber) > NSFoundationVersionNumber_iOS_6_1)
+	{
+		// iOS 7 or later
+		// Not needed for iOS 6, accessory view can co-exist
+		return;
+	}
+	
+	if (!self.accessoryView || !self.superview)
+	{
+		// No accessory view, not added to superview, not needed
+		return;
+	}
+	
+	CGFloat maxWidthToAccessoryView = CGRectGetMinX(self.accessoryView.frame) - 10;
+	
+	// Just make it twice as large so it can compute properly
+	CGSize textViewSize =
+	[theText sizeWithFont:internalTextView.font
+				 forWidth:internalTextView.contentSize.width * 2
+			lineBreakMode:NSLineBreakByClipping];
+	
+	BOOL textOverlapsAccessoryView =
+	(textViewSize.width >= maxWidthToAccessoryView);
+	
+	BOOL shouldHide = textOverlapsAccessoryView;
+	
+	if (shouldHide != self.accessoryView.hidden)
+	{
+		[UIView animateWithDuration:animate ? 0.3 : 0.0
+							  delay:0.0
+							options:UIViewAnimationCurveEaseInOut
+						 animations:^{
+							 self.accessoryView.alpha = shouldHide ? 0 : 1;
+							 self.accessoryView.hidden = shouldHide;
+						 }
+						 completion:nil];
+	}
+}
+
 -(void)layoutSubviews
 {
     [super layoutSubviews];
-    
+	
 	CGRect r = self.bounds;
 	r.origin.y = 0;
 	r.origin.x = contentInset.left;
@@ -214,15 +255,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 			internalInsets.right = rightInsets;
 			self.internalTextView.textContainerInset = internalInsets;
 		}
-//		else
-//		{
-//			UIEdgeInsets internalInsets = self.internalTextView.contentInset;
-//			internalInsets.right =
-//			(HPAccessoryViewLeftPadding +
-//			 HPAccessoryViewRightPadding +
-//			 CGRectGetWidth(accessoryViewFrame));
-//			self.internalTextView.contentInset = internalInsets;
-//		}
+
+		[self ios6_hideAccessoryViewIfOverlapsWithText:self.text animate:NO];
 	}
 
     internalTextView.frame = r;
@@ -360,6 +394,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 		_accessoryView = accessoryView;
 		
 		[self truncateStringToFitSingleLine];
+		
+		[self ios6_hideAccessoryViewIfOverlapsWithText:self.text animate:NO];
 	}
 }
 
@@ -549,6 +585,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 	self.realText = newText;
     internalTextView.text = newText;
 	
+	[self ios6_hideAccessoryViewIfOverlapsWithText:newText animate:NO];
+	
 	if (![self isFirstResponder])
 	{
         [self truncateStringToFitSingleLine];
@@ -710,6 +748,10 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 	[internalTextView scrollRangeToVisible:range];
 }
 
+- (void)scrollTextViewToCaret
+{
+	[self scrollRangeToVisible:internalTextView.selectedRange];
+}
 
 #pragma mark - Truncation
 
@@ -718,12 +760,16 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 	CGRect frame = internalTextView.frame;
 	frame.size.height = internalTextView.font.lineHeight;
 	
-	CGFloat rightInsets;
-	[self getAccessoryViewFrame:NULL textViewRightInsets:&rightInsets];
-
-	if (rightInsets > 0)
+	if (floor(NSFoundationVersionNumber) > NSFoundationVersionNumber_iOS_6_1)
 	{
-		frame.size.width -= rightInsets;
+		// iOS 7 or later	
+		CGFloat rightInsets;
+		[self getAccessoryViewFrame:NULL textViewRightInsets:&rightInsets];
+		
+		if (rightInsets > 0)
+		{
+			frame.size.width -= rightInsets;
+		}
 	}
 
 	NSString* truncatedString = nil;
@@ -815,23 +861,51 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 	if(![textView hasText] && [atext isEqualToString:@""]) return NO;
 	
 	//Added by bretdabaker: sometimes we want to handle this ourselves
-    	if ([delegate respondsToSelector:@selector(growingTextView:shouldChangeTextInRange:replacementText:)])
-        	return [delegate growingTextView:self shouldChangeTextInRange:range replacementText:atext];
+	if ([delegate respondsToSelector:@selector(growingTextView:shouldChangeTextInRange:replacementText:)])
+	{
+		BOOL shouldChange = [delegate growingTextView:self shouldChangeTextInRange:range replacementText:atext];
+		
+		if (shouldChange)
+		{
+			NSString* textAfterReplacement =
+			[textView.text stringByReplacingCharactersInRange:range withString:atext];
+			[self ios6_hideAccessoryViewIfOverlapsWithText:textAfterReplacement animate:NO];
+		}
+		
+		// Scroll to the end of the text
+		if (floor(NSFoundationVersionNumber) <= NSFoundationVersionNumber_iOS_6_1)
+		{
+			// iOS 6.1 or earlier
+			[self performSelector:@selector(scrollTextViewToCaret) withObject:nil afterDelay:0];
+		}
+		
+		return shouldChange;
+	}
 	
-	if ([atext isEqualToString:@"\n"]) {
-		if ([delegate respondsToSelector:@selector(growingTextViewShouldReturn:)]) {
-			if (![delegate performSelector:@selector(growingTextViewShouldReturn:) withObject:self]) {
-				return YES;
-			} else {
+	BOOL shouldChange = YES;
+	
+	if ([atext isEqualToString:@"\n"])
+	{
+		if ([delegate respondsToSelector:@selector(growingTextViewShouldReturn:)])
+		{
+			BOOL shouldReturn = [delegate growingTextViewShouldReturn:self];
+			
+			if (shouldReturn)
+			{
 				[textView resignFirstResponder];
-				return NO;
+				shouldChange = NO;
 			}
 		}
 	}
 	
-	return YES;
+	if (shouldChange)
+	{
+		NSString* textAfterReplacement =
+		[textView.text stringByReplacingCharactersInRange:range withString:atext];
+		[self ios6_hideAccessoryViewIfOverlapsWithText:textAfterReplacement animate:atext.length <= 1];
+	}
 	
-    
+	return shouldChange;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
