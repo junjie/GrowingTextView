@@ -123,6 +123,8 @@
 
 - (BOOL)hasText;
 - (void)scrollRangeToVisible:(NSRange)range;
+
+- (void)ios7_scrollToCaret;
 - (void)ios7_scrollToCaretAnimated:(BOOL)animated;
 
 // call to force a height change (e.g. after you change max/min lines)
