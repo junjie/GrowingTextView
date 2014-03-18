@@ -548,8 +548,11 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 			
 			if (offset.y < 0)
 			{
+				NSString *originalText = internalTextView.text;
 				NSRange originalSelectedRange = internalTextView.selectedRange;
-				[internalTextView setText:internalTextView.text];
+				
+				[internalTextView setText:nil];
+				[internalTextView setText:originalText];
 				
 				// Restore selected range
 				[internalTextView setSelectedRange:originalSelectedRange];
