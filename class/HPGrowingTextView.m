@@ -56,7 +56,6 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 
 @implementation HPGrowingTextView
 @synthesize internalTextView;
-@synthesize delegate;
 @synthesize maxHeight;
 @synthesize minHeight;
 @synthesize font;
@@ -461,8 +460,13 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 									 completion(oldHeight, newSizeH);
 								 }
 								 
-								 if ([delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
-									 [delegate growingTextView:self didChangeHeight:newSizeH];
+								 if (!self.delegate)
+								 {
+									 DDLogDebug(@"*** Delegate missing at this point");
+								 }
+								 
+								 if ([self.delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
+									 [self.delegate growingTextView:self didChangeHeight:newSizeH];
 								 }
 							 }];
 		}
@@ -480,8 +484,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 //	[self performSelector:@selector(ios7_scrollToCaret) withObject:nil afterDelay:0.1f];
 
     // Tell the delegate that the text view changed
-    if ([delegate respondsToSelector:@selector(growingTextViewDidChange:)]) {
-		[delegate growingTextViewDidChange:self];
+    if ([self.delegate respondsToSelector:@selector(growingTextViewDidChange:)]) {
+		[self.delegate growingTextViewDidChange:self];
 	}
 }
 
@@ -523,8 +527,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 
 -(void)resizeTextView:(NSInteger)newSizeH
 {
-    if ([delegate respondsToSelector:@selector(growingTextView:willChangeHeight:)]) {
-        [delegate growingTextView:self willChangeHeight:newSizeH];
+    if ([self.delegate respondsToSelector:@selector(growingTextView:willChangeHeight:)]) {
+        [self.delegate growingTextView:self willChangeHeight:newSizeH];
     }
     
     CGRect internalTextViewFrame = self.frame;
@@ -571,8 +575,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
     // scroll to caret (needed on iOS7)
 	[self ios7_scrollToCaretAnimated:NO];
     
-	if ([delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
-		[delegate growingTextView:self didChangeHeight:self.frame.size.height];
+	if ([self.delegate respondsToSelector:@selector(growingTextView:didChangeHeight:)]) {
+		[self.delegate growingTextView:self didChangeHeight:self.frame.size.height];
 	}
 }
 
@@ -850,8 +854,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 - (BOOL)textViewShouldBeginEditing:(UITextView *)textView {
-	if ([delegate respondsToSelector:@selector(growingTextViewShouldBeginEditing:)]) {
-		return [delegate growingTextViewShouldBeginEditing:self];
+	if ([self.delegate respondsToSelector:@selector(growingTextViewShouldBeginEditing:)]) {
+		return [self.delegate growingTextViewShouldBeginEditing:self];
 		
 	} else {
 		return YES;
@@ -861,8 +865,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 - (BOOL)textViewShouldEndEditing:(UITextView *)textView {
-	if ([delegate respondsToSelector:@selector(growingTextViewShouldEndEditing:)]) {
-		return [delegate growingTextViewShouldEndEditing:self];
+	if ([self.delegate respondsToSelector:@selector(growingTextViewShouldEndEditing:)]) {
+		return [self.delegate growingTextViewShouldEndEditing:self];
 		
 	} else {
 		return YES;
@@ -873,16 +877,16 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)textViewDidBeginEditing:(UITextView *)textView {
     internalTextView.text = self.realText;
-	if ([delegate respondsToSelector:@selector(growingTextViewDidBeginEditing:)]) {
-		[delegate growingTextViewDidBeginEditing:self];
+	if ([self.delegate respondsToSelector:@selector(growingTextViewDidBeginEditing:)]) {
+		[self.delegate growingTextViewDidBeginEditing:self];
 	}
 }
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)textViewDidEndEditing:(UITextView *)textView {		
-	if ([delegate respondsToSelector:@selector(growingTextViewDidEndEditing:)]) {
-		[delegate growingTextViewDidEndEditing:self];
+	if ([self.delegate respondsToSelector:@selector(growingTextViewDidEndEditing:)]) {
+		[self.delegate growingTextViewDidEndEditing:self];
 	}
 }
 
@@ -895,9 +899,9 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 	if(![textView hasText] && [atext isEqualToString:@""]) return NO;
 	
 	//Added by bretdabaker: sometimes we want to handle this ourselves
-	if ([delegate respondsToSelector:@selector(growingTextView:shouldChangeTextInRange:replacementText:)])
+	if ([self.delegate respondsToSelector:@selector(growingTextView:shouldChangeTextInRange:replacementText:)])
 	{
-		BOOL shouldChange = [delegate growingTextView:self shouldChangeTextInRange:range replacementText:atext];
+		BOOL shouldChange = [self.delegate growingTextView:self shouldChangeTextInRange:range replacementText:atext];
 		
 		if (shouldChange)
 		{
@@ -920,9 +924,9 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 	
 	if ([atext isEqualToString:@"\n"])
 	{
-		if ([delegate respondsToSelector:@selector(growingTextViewShouldReturn:)])
+		if ([self.delegate respondsToSelector:@selector(growingTextViewShouldReturn:)])
 		{
-			BOOL shouldReturn = [delegate growingTextViewShouldReturn:self];
+			BOOL shouldReturn = [self.delegate growingTextViewShouldReturn:self];
 			
 			if (shouldReturn)
 			{
@@ -944,8 +948,8 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 - (void)textViewDidChangeSelection:(UITextView *)textView {
-	if ([delegate respondsToSelector:@selector(growingTextViewDidChangeSelection:)]) {
-		[delegate growingTextViewDidChangeSelection:self];
+	if ([self.delegate respondsToSelector:@selector(growingTextViewDidChangeSelection:)]) {
+		[self.delegate growingTextViewDidChangeSelection:self];
 	}
 }
 
