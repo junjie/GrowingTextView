@@ -903,17 +903,20 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 	{
 		BOOL shouldChange = [self.delegate growingTextView:self shouldChangeTextInRange:range replacementText:atext];
 		
-		if (shouldChange)
-		{
-			NSString* textAfterReplacement =
-			[textView.text stringByReplacingCharactersInRange:range withString:atext];
-			[self ios6_hideAccessoryViewIfOverlapsWithText:textAfterReplacement animate:NO];
-		}
-		
-		// Scroll to the end of the text
+		// iOS 6.1 or earlier
 		if (floor(NSFoundationVersionNumber) <= NSFoundationVersionNumber_iOS_6_1)
 		{
-			// iOS 6.1 or earlier
+			// iOS 7 seems to have a problem where the range reported is much
+			// larger than the length of the text in the text view when a new
+			// line is created while typing in Japanese/Chinese characters
+			if (shouldChange)
+			{
+				NSString* textAfterReplacement =
+				[textView.text stringByReplacingCharactersInRange:range withString:atext];
+				[self ios6_hideAccessoryViewIfOverlapsWithText:textAfterReplacement animate:NO];
+			}
+
+			// Scroll to the end of the text
 			[self performSelector:@selector(scrollTextViewToCaret) withObject:nil afterDelay:0];
 		}
 		
@@ -935,12 +938,16 @@ CGFloat const HPTruncationInsetiOS6 = 8.0f;
 			}
 		}
 	}
-	
-	if (shouldChange)
+
+	// iOS 6.1 or earlier
+	if (floor(NSFoundationVersionNumber) <= NSFoundationVersionNumber_iOS_6_1)
 	{
-		NSString* textAfterReplacement =
-		[textView.text stringByReplacingCharactersInRange:range withString:atext];
-		[self ios6_hideAccessoryViewIfOverlapsWithText:textAfterReplacement animate:atext.length <= 1];
+		if (shouldChange)
+		{
+			NSString* textAfterReplacement =
+			[textView.text stringByReplacingCharactersInRange:range withString:atext];
+			[self ios6_hideAccessoryViewIfOverlapsWithText:textAfterReplacement animate:atext.length <= 1];
+		}
 	}
 	
 	return shouldChange;
